@@ -1,0 +1,20 @@
+services:
+  ydb-local:
+    image: ydbplatform/local-ydb:latest
+    container_name: ydb-sample
+    hostname: localhost
+    platform: linux/amd64
+    ports:
+      - "2135:2135"
+      - "2136:2136"
+      - "8765:8765"
+      - "9092:9092"
+    volumes:
+      - ./ydbd/ydb_certs:/ydb_certs
+      - ./ydbd/ydb_data:/ydb_data
+    environment:
+      - GRPC_TLS_PORT=2135
+      - GRPC_PORT=2136
+      - MON_PORT=8765
+      - YDB_KAFKA_PROXY_PORT=9092
+    restart: unless-stopped
