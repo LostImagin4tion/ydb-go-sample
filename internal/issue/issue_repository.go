@@ -3,7 +3,6 @@ package issue
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 	"ydb-sample/internal/query"
 
@@ -69,14 +68,16 @@ func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 		ydb.ParamsBuilder().
 			Param("$id").Uuid(id).
 			Build(),
-		func(resultSet ydbQuery.ResultSet, ctx context.Context) {
+		func(resultSet ydbQuery.ResultSet, ctx context.Context) error {
 			for row, err := range sugar.UnmarshalRows[Issue](resultSet.Rows(ctx)) {
 				if err != nil {
-					log.Fatal(err)
+					clear(result)
+					return err
 				}
 
 				result = append(result, row)
 			}
+			return nil
 		},
 	)
 
@@ -101,14 +102,16 @@ func (repo *IssueRepository) FindAll() ([]Issue, error) {
 		`,
 		ydbQuery.SnapshotReadOnlyTxControl(),
 		ydb.ParamsBuilder().Build(),
-		func(resultSet ydbQuery.ResultSet, ctx context.Context) {
+		func(resultSet ydbQuery.ResultSet, ctx context.Context) error {
 			for row, err := range sugar.UnmarshalRows[Issue](resultSet.Rows(ctx)) {
 				if err != nil {
-					log.Fatal(err)
+					clear(result)
+					return err
 				}
 
 				result = append(result, row)
 			}
+			return nil
 		},
 	)
 

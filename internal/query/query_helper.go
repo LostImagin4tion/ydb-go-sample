@@ -62,7 +62,7 @@ func (q *QueryHelper) Query(
 	yql string,
 	txControl *query.TransactionControl,
 	params ydb.Params,
-	materializeFunc func(query.ResultSet, context.Context),
+	materializeFunc func(query.ResultSet, context.Context) error,
 ) error {
 	return q.driver.Query().Do(
 		q.ctx,
