@@ -1,7 +1,7 @@
 
 .PHONY: run
 run:
-	go run main.go
+	go run cmd/main.go
 
 .PHONY: deploy
 deploy:
