@@ -31,14 +31,18 @@ func (repo *SchemaRepository) CreateSchema() {
 	}
 
 	err = repo.query.Execute(`
-		ALTER TABLE issues ADD COLUMN link_count Uint64;
+		ALTER TABLE issues ADD COLUMN links_count Uint64;
 
 		CREATE TABLE IF NOT EXISTS links (
 			source Uuid NOT NULL,
 			destination Uuid NOT NULL,
-			PRIMARY_KEY(source, destination)
+			PRIMARY KEY (source, destination)
 		);
 	`)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (repo *SchemaRepository) DropSchema() {

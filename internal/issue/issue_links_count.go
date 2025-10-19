@@ -2,7 +2,7 @@ package issue
 
 import "github.com/google/uuid"
 
-type LinksCount struct {
+type IssueLinksCount struct {
 	Id         uuid.UUID `sql:"id"`
 	LinksCount uint64    `sql:"links_count"`
 }
