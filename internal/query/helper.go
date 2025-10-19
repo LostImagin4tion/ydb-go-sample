@@ -31,21 +31,21 @@ func NewQueryHelper(dsn string) *QueryHelper {
 	}
 }
 
-func (q *QueryHelper) Execute(yql string) error {
-	return q.ExecuteTx(
+func (helper *QueryHelper) Execute(yql string) error {
+	return helper.ExecuteWithParams(
 		yql,
 		query.NoTx(),
 		ydb.ParamsBuilder().Build(),
 	)
 }
 
-func (q *QueryHelper) ExecuteTx(
+func (helper *QueryHelper) ExecuteWithParams(
 	yql string,
 	txControl *query.TransactionControl,
 	params ydb.Params,
 ) error {
-	return q.driver.Query().Do(
-		q.ctx,
+	return helper.driver.Query().Do(
+		helper.ctx,
 		func(ctx context.Context, s query.Session) error {
 			err := s.Exec(
 				ctx,
@@ -58,14 +58,25 @@ func (q *QueryHelper) ExecuteTx(
 	)
 }
 
-func (q *QueryHelper) Query(
+func (helper *QueryHelper) ExecuteInTx(
+	execute func(context.Context, query.TxActor) error,
+) error {
+	return helper.driver.Query().DoTx(
+		helper.ctx,
+		func(ctx context.Context, tx query.TxActor) error {
+			return execute(ctx, tx)
+		},
+	)
+}
+
+func (helper *QueryHelper) Query(
 	yql string,
 	txControl *query.TransactionControl,
 	params ydb.Params,
-	materializeFunc func(query.ResultSet, context.Context) error,
+	materializeResult func(query.ResultSet, context.Context) error,
 ) error {
-	return q.driver.Query().Do(
-		q.ctx,
+	return helper.driver.Query().Do(
+		helper.ctx,
 		func(ctx context.Context, s query.Session) error {
 			result, err := s.Query(
 				ctx,
@@ -89,8 +100,11 @@ func (q *QueryHelper) Query(
 
 					return err
 				}
-
-				materializeFunc(resultSet, q.ctx)
+				
+				err = materializeResult(resultSet, helper.ctx)
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -98,7 +112,7 @@ func (q *QueryHelper) Query(
 	)
 }
 
-func (q *QueryHelper) Close() {
-	q.driver.Close(q.ctx)
-	q.cancelFunc()
+func (helper *QueryHelper) Close() {
+	helper.driver.Close(helper.ctx)
+	helper.cancelFunc()
 }
