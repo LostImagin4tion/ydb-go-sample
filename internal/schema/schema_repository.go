@@ -31,6 +31,10 @@ func (repo *SchemaRepository) CreateSchema() {
 	}
 
 	err = repo.query.Execute(`
+		ALTER TABLE issues ADD INDEX authorIndex GLOBAL ON (author);
+	`)
+
+	err = repo.query.Execute(`
 		ALTER TABLE issues ADD COLUMN links_count Uint64;
 
 		CREATE TABLE IF NOT EXISTS links (

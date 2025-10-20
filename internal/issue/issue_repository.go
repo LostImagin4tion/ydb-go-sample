@@ -45,7 +45,6 @@ func (repo *IssueRepository) AddIssue(
 			Param("$author").Text(author).
 			Build(),
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +59,7 @@ func (repo *IssueRepository) AddIssue(
 func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 	var result = make([]Issue, 0)
 
-	repo.helper.Query(`
+	var err = repo.helper.Query(`
 		SELECT
 			id,
 			title,
@@ -78,6 +77,9 @@ func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 			return query.Materialize(rs, ctx, &result)
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(result) > 1 {
 		return nil, errors.New("Multiple rows with the same id")
@@ -85,7 +87,38 @@ func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 	if len(result) == 0 {
 		return nil, errors.New("Didnt found any issues (lol)")
 	}
+
 	return &result[0], nil
+}
+
+func (repo *IssueRepository) FindByAuthor(author string) ([]Issue, error) {
+	var result = make([]Issue, 0)
+
+	var err = repo.helper.Query(`
+		DECLARE $author AS Text;
+
+		SELECT
+			id,
+			title,
+			created_at,
+			author,
+			COALESCE(links_count, 0) AS links_count
+		FROM issues
+		WHERE author=$author
+		`,
+		ydbQuery.SnapshotReadOnlyTxControl(),
+		ydb.ParamsBuilder().
+			Param("$author").Text(author).
+			Build(),
+		func(rs ydbQuery.ResultSet, ctx context.Context) error {
+			return query.Materialize(rs, ctx, &result)
+		},
+	)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
 }
 
 func (repo *IssueRepository) FindAll() ([]Issue, error) {
@@ -106,7 +139,6 @@ func (repo *IssueRepository) FindAll() ([]Issue, error) {
 			return query.Materialize(rs, ctx, &result)
 		},
 	)
-
 	if err != nil {
 		return result, err
 	}
@@ -143,7 +175,6 @@ func (repo *IssueRepository) LinkTicketsNoInteractive(
 			return query.Materialize(rs, ctx, &result)
 		},
 	)
-
 	if err != nil {
 		return result, err
 	}
@@ -223,7 +254,6 @@ func (repo *IssueRepository) LinkTicketsInteractive(
 			return query.Materialize(rows, ctx, &result)
 		},
 	)
-
 	if err != nil {
 		return result, err
 	}

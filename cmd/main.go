@@ -53,23 +53,20 @@ func main() {
 	first, err := issuesRepository.FindById(firstIssue.Id)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("First: %v\n", first)
 	}
+	log.Printf("First: %v\n", first)
 
 	second, err := issuesRepository.FindById(secondIssue.Id)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("Second: %v\n", second)
 	}
+	log.Printf("Second: %v\n", second)
 
 	third, err := issuesRepository.FindById(thirdIssue.Id)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("Third: %v\n", second)
 	}
+	log.Printf("Third: %v\n", second)
 
 	// ====== CHECK TRANSACTIONS ======
 	log.Println("Checking non-interactive transaction...")
@@ -77,16 +74,14 @@ func main() {
 	result1, err := issuesRepository.LinkTicketsNoInteractive(first.Id, second.Id)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("Non-interactive transaction result: %v\n", result1)
 	}
+	log.Printf("Non-interactive transaction result: %v\n", result1)
 
 	result2, err := issuesRepository.LinkTicketsInteractive(second.Id, third.Id)
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.Printf("Interactive transaction result: %v\n", result2)
 	}
+	log.Printf("Interactive transaction result: %v\n", result2)
 
 	// ====== CHECK DATA AGAIN ======
 	log.Println("All issues:")
@@ -99,4 +94,13 @@ func main() {
 	for _, issue := range allIssues {
 		log.Printf("%v\n", issue)
 	}
+
+	// ====== CHECK AUTHOR INDEX ======
+	log.Println("Find by index 'authorIndex':")
+
+	author2Issues, err := issuesRepository.FindByAuthor("Author 2")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Author 2 issues: %v", author2Issues)
 }
