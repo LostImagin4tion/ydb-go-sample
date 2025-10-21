@@ -34,6 +34,10 @@ func (repo *SchemaRepository) CreateSchema() {
 		ALTER TABLE issues ADD INDEX authorIndex GLOBAL ON (author);
 	`)
 
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	err = repo.query.Execute(`
 		ALTER TABLE issues ADD COLUMN links_count Uint64;
 
@@ -47,12 +51,30 @@ func (repo *SchemaRepository) CreateSchema() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = repo.query.Execute(`
+		CREATE TOPIC IF NOT EXISTS task_status(
+			CONSUMER email
+		) WITH(
+			auto_partitioning_strategy = 'scale_up',
+			min_active_partitions = 2,
+			max_active_partitions = 10,
+			retention_period = INTERVAL('P3D')
+		);
+
+		ALTER TABLE issues ADD COLUMN status Text;
+	`)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (repo *SchemaRepository) DropSchema() {
 	err := repo.query.Execute(`
 		DROP TABLE IF EXISTS issues;
 		DROP TABLE IF EXISTS links;
+		DROP TABLE IF EXISTS task_status
 	`)
 
 	if err != nil {

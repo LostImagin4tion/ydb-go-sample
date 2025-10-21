@@ -12,4 +12,5 @@ type Issue struct {
 	Timestamp  time.Time `sql:"created_at"`
 	Author     string    `sql:"author"`
 	LinksCount uint64    `sql:"links_count"`
+	Status     string    `sql:"status"`
 }

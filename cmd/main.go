@@ -103,4 +103,7 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("Author 2 issues: %v", author2Issues)
+
+	// ====== CHECK TOPICS ======
+	
 }

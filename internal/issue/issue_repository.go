@@ -56,6 +56,33 @@ func (repo *IssueRepository) AddIssue(
 	}, nil
 }
 
+
+func (repo *IssueRepository) FindAll() ([]Issue, error) {
+	var result = make([]Issue, 0)
+
+	var err = repo.helper.Query(`
+		SELECT
+			id,
+			title,
+			created_at,
+			author,
+			COALESCE(links_count, 0) AS links_count,
+			status
+		FROM issues;
+		`,
+		ydbQuery.SnapshotReadOnlyTxControl(),
+		ydb.ParamsBuilder().Build(),
+		func(rs ydbQuery.ResultSet, ctx context.Context) error {
+			return query.Materialize(rs, ctx, &result)
+		},
+	)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 	var result = make([]Issue, 0)
 
@@ -65,7 +92,8 @@ func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 			title,
 			created_at,
 			author,
-			COALESCE(links_count, 0) AS links_count
+			COALESCE(links_count, 0) AS links_count,
+			status
 		FROM issues
 		WHERE id=$id;
 		`,
@@ -102,7 +130,8 @@ func (repo *IssueRepository) FindByAuthor(author string) ([]Issue, error) {
 			title,
 			created_at,
 			author,
-			COALESCE(links_count, 0) AS links_count
+			COALESCE(links_count, 0) AS links_count,
+			status
 		FROM issues
 		WHERE author=$author
 		`,
@@ -121,29 +150,21 @@ func (repo *IssueRepository) FindByAuthor(author string) ([]Issue, error) {
 	return result, nil
 }
 
-func (repo *IssueRepository) FindAll() ([]Issue, error) {
-	var result = make([]Issue, 0)
+func (repo *IssueRepository) UpdateStatus(id uuid.UUID, status string) error {
+	return repo.helper.ExecuteWithParams(`
+		DECLARE $id AS Uuid;
+		DECLARE $new_status AS Text;
 
-	var err = repo.helper.Query(`
-		SELECT
-			id,
-			title,
-			created_at,
-			author,
-			COALESCE(links_count, 0) AS links_count
-		FROM issues;
+		UPDATE issues
+		SET status = $new_status
+		WHERE id = $id;
 		`,
-		ydbQuery.SnapshotReadOnlyTxControl(),
-		ydb.ParamsBuilder().Build(),
-		func(rs ydbQuery.ResultSet, ctx context.Context) error {
-			return query.Materialize(rs, ctx, &result)
-		},
+		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
+		ydb.ParamsBuilder().
+			Param("$id").Uuid(id).
+			Param("new_status").Text(status).
+			Build(),
 	)
-	if err != nil {
-		return result, err
-	}
-
-	return result, nil
 }
 
 func (repo *IssueRepository) LinkTicketsNoInteractive(
