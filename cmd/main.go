@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"log"
 	"ydb-sample/internal/issue"
 	"ydb-sample/internal/query"
 	"ydb-sample/internal/schema"
+	"ydb-sample/internal/topic"
 )
 
 func main() {
-	var queryHelper = query.NewQueryHelper("grpc://localhost:2136/local")
+	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	var queryHelper = query.NewQueryHelper(ctx, "grpc://localhost:2136/local")
 	defer queryHelper.Close()
 
 	var schemaRepository = schema.NewSchemaRepository(queryHelper)
@@ -105,5 +110,57 @@ func main() {
 	log.Printf("Author 2 issues: %v", author2Issues)
 
 	// ====== CHECK TOPICS ======
-	
+	updateService, err := topic.NewStatusUpdateService(
+		issuesRepository,
+		queryHelper.Topic(),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Update status for all tickets: NULL -> OPEN")
+	for _, issue := range allIssues {
+		var err = updateService.Update(ctx, issue.Id, "OPEN")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	readerWorker, err := topic.NewReaderWorker(queryHelper.Topic())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	readerWorker.Run(ctx)
+
+	log.Println("Update status for all tickets: NULL -> IN_PROGRESS")
+	for _, issue := range allIssues {
+		var err = updateService.Update(ctx, issue.Id, "IN_PROGRESS")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	err = updateService.Shutdown(ctx)
+	log.Println("Shutdown update service...")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = readerWorker.Shutdown(ctx)
+	log.Println("Shutdown reader worker...")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Print all issues")
+
+	allIssues, err = issuesRepository.FindAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range allIssues {
+		log.Printf("%v\n", issue)
+	}
 }

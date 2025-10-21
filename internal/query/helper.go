@@ -12,23 +12,19 @@ import (
 )
 
 type QueryHelper struct {
-	driver     *ydb.Driver
-	ctx        context.Context
-	cancelFunc context.CancelFunc
+	driver *ydb.Driver
+	ctx    context.Context
 }
 
-func NewQueryHelper(dsn string) *QueryHelper {
-	ctx, cancel := context.WithCancel(context.Background())
-
+func NewQueryHelper(ctx context.Context, dsn string) *QueryHelper {
 	db, err := ydb.Open(ctx, dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return &QueryHelper{
-		driver:     db,
-		ctx:        ctx,
-		cancelFunc: cancel,
+		driver: db,
+		ctx:    ctx,
 	}
 }
 
@@ -101,7 +97,7 @@ func (helper *QueryHelper) Query(
 
 					return err
 				}
-				
+
 				err = materializeResult(resultSet, helper.ctx)
 				if err != nil {
 					return err
@@ -115,7 +111,6 @@ func (helper *QueryHelper) Query(
 
 func (helper *QueryHelper) Close() {
 	helper.driver.Close(helper.ctx)
-	helper.cancelFunc()
 }
 
 func (helper *QueryHelper) Topic() topic.Client {

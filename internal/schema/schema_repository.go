@@ -74,7 +74,7 @@ func (repo *SchemaRepository) DropSchema() {
 	err := repo.query.Execute(`
 		DROP TABLE IF EXISTS issues;
 		DROP TABLE IF EXISTS links;
-		DROP TABLE IF EXISTS task_status
+		DROP TOPIC IF EXISTS task_status;
 	`)
 
 	if err != nil {

@@ -56,7 +56,6 @@ func (repo *IssueRepository) AddIssue(
 	}, nil
 }
 
-
 func (repo *IssueRepository) FindAll() ([]Issue, error) {
 	var result = make([]Issue, 0)
 
@@ -162,7 +161,7 @@ func (repo *IssueRepository) UpdateStatus(id uuid.UUID, status string) error {
 		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
 		ydb.ParamsBuilder().
 			Param("$id").Uuid(id).
-			Param("new_status").Text(status).
+			Param("$new_status").Text(status).
 			Build(),
 	)
 }
