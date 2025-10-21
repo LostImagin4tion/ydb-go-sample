@@ -5,10 +5,12 @@ import (
 	"errors"
 	"time"
 	"ydb-sample/internal/query"
+	"ydb-sample/internal/utils"
 
 	"github.com/google/uuid"
 	ydb "github.com/ydb-platform/ydb-go-sdk/v3"
 	ydbQuery "github.com/ydb-platform/ydb-go-sdk/v3/query"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 )
 
 type IssueRepository struct {
@@ -54,6 +56,37 @@ func (repo *IssueRepository) AddIssue(
 		Title:     title,
 		Timestamp: timestamp,
 	}, nil
+}
+
+func (repo *IssueRepository) AddIssues(issues []string) error {
+	var queryParams = ydb.ParamsBuilder().
+		Param("$args").
+		BeginList().
+		AddItems(
+			utils.Mapped(&issues, func(i int, issue string) types.Value {
+				return types.StructValue(
+					types.StructFieldValue("id", types.UuidValue(uuid.New())),
+					types.StructFieldValue("title", types.TextValue(issue)),
+					types.StructFieldValue("created_at", types.TimestampValueFromTime(time.Now())),
+				)
+			})...,
+		).
+		EndList().
+		Build()
+
+	return repo.helper.ExecuteWithParams(`
+		DECLARE $args AS List<Struct<
+			id: Uuid,
+			title: Text,
+			created_at: Timestamp,
+		>>;
+
+		UPSERT INTO issues
+		SELECT * FROM AS_TABLE($args);
+		`,
+		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
+		queryParams,
+	)
 }
 
 func (repo *IssueRepository) FindAll() ([]Issue, error) {
@@ -118,6 +151,48 @@ func (repo *IssueRepository) FindById(id uuid.UUID) (*Issue, error) {
 	return &result[0], nil
 }
 
+func (repo *IssueRepository) FindByIds(ids []uuid.UUID) ([]Issue, error) {
+	var result = make([]Issue, 0)
+
+	var queryParams = ydb.ParamsBuilder().
+		Param("$ids").
+		BeginList().
+		AddItems(
+			utils.Mapped(&ids, func(i int, id uuid.UUID) types.Value {
+				return types.StructValue(
+					types.StructFieldValue("id", types.UuidValue(id)),
+				)
+			})...,
+		).
+		EndList().
+		Build()
+
+	var err = repo.helper.Query(`
+		DECLARE $ids AS List<Struct<id: Uuid>>;
+
+		SELECT
+			id,
+			title,
+			created_at,
+			author,
+			links_count,
+			status
+		FROM issues
+		WHERE id IN (SELECT id from AS_TABLE($ids));
+		`,
+		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
+		queryParams,
+		func(rs ydbQuery.ResultSet, ctx context.Context) error {
+			return query.Materialize(rs, ctx, &result)
+		},
+	)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 func (repo *IssueRepository) FindByAuthor(author string) ([]Issue, error) {
 	var result = make([]Issue, 0)
 
@@ -138,6 +213,37 @@ func (repo *IssueRepository) FindByAuthor(author string) ([]Issue, error) {
 		ydb.ParamsBuilder().
 			Param("$author").Text(author).
 			Build(),
+		func(rs ydbQuery.ResultSet, ctx context.Context) error {
+			return query.Materialize(rs, ctx, &result)
+		},
+	)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
+func (repo *IssueRepository) FindFutures() ([]IssueTitle, error) {
+	var result = make([]IssueTitle, 0)
+
+	var err = repo.helper.Query(`
+		$future =
+			SELECT id, title
+			FROM issues
+			WHERE status = 'FUTURE';
+		
+		SELECT * from $future;
+
+		UPDATE issues ON
+		SELECT
+			id,
+			CurrentUtcTimestamp() AS created_at,
+			CAST('NEW' AS Text) AS status                                                
+        FROM $future;
+		`,
+		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
+		ydb.ParamsBuilder().Build(),
 		func(rs ydbQuery.ResultSet, ctx context.Context) error {
 			return query.Materialize(rs, ctx, &result)
 		},
@@ -176,6 +282,66 @@ func (repo *IssueRepository) Delete(id uuid.UUID) error {
 		ydb.ParamsBuilder().
 			Param("$id").Uuid(id).
 			Build(),
+	)
+}
+
+func (repo *IssueRepository) DeleteByIds(ids []uuid.UUID) error {
+	var queryParams = ydb.ParamsBuilder().
+		Param("$issues_ids_arg").
+		BeginList().
+		AddItems(
+			utils.Mapped(&ids, func(i int, id uuid.UUID) types.Value {
+				return types.UuidValue(id)
+			})...,
+		).
+		EndList().
+		Build()
+
+	return repo.helper.ExecuteWithParams(`
+			DECLARE $issues_ids_arg AS List<Uuid>;
+
+			$list_to_id_struct = ($id) -> { RETURN <|id:$id|> };
+
+			$issue_ids_list = ListMap(ListUniq($issues_ids_arg), $list_to_id_struct);
+
+			$issues = SELECT id FROM AS_TABLE($issue_ids_list);
+
+			$linked_issues = 
+				SELECT
+					source,
+					destination
+				FROM links
+				WHERE source IN $issues;
+			
+			$linked_issues_mirrored =
+				SELECT
+					destination AS source,
+					source AS destination
+				FROM $linked_issues;
+			
+			$mirrored_dec_map = 
+				SELECT
+					source AS id,
+					COUNT(*) as cnt
+				FROM $linked_issues_mirrored
+				GROUP BY source;
+			
+			UPDATE issues ON
+			SELECT
+				i.id as id,
+				i.links_count - d.cnt AS links_count
+			FROM $mirrored_dec_map AS d
+			JOIN issues AS i ON d.id = i.id;
+
+			UPDATE issues
+			SET links_count = links_count - 1
+			WHERE id IN $issues;
+
+			DELETE FROM issues
+			WHERE id IN $issues;
+		`,
+		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
+		queryParams,
 	)
 }
 
