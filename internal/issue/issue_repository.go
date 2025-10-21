@@ -166,6 +166,19 @@ func (repo *IssueRepository) UpdateStatus(id uuid.UUID, status string) error {
 	)
 }
 
+func (repo *IssueRepository) Delete(id uuid.UUID) error {
+	return repo.helper.ExecuteWithParams(`
+		DECLARE $id AS Uuid;
+
+		DELETE FROM issues WHERE id=$id
+		`,
+		ydbQuery.SerializableReadWriteTxControl(ydbQuery.CommitTx()),
+		ydb.ParamsBuilder().
+			Param("$id").Uuid(id).
+			Build(),
+	)
+}
+
 func (repo *IssueRepository) LinkTicketsNoInteractive(
 	id1 uuid.UUID,
 	id2 uuid.UUID,

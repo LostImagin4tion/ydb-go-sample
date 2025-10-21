@@ -163,4 +163,41 @@ func main() {
 	for _, issue := range allIssues {
 		log.Printf("%v\n", issue)
 	}
+
+	// ====== CHANGEFEED TEST ======
+	log.Println("Testing changefeed...")
+	readerChangefeedWorker, err := topic.NewReaderChangefeedWorker(queryHelper.Topic())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	readerChangefeedWorker.ReadChangefeed(ctx)
+
+	err = issuesRepository.UpdateStatus(first.Id, "FUTURE")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = issuesRepository.Delete(second.Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = issuesRepository.Delete(second.Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	readerChangefeedWorker.Shutdown(ctx)
+
+	log.Println("Print all issues")
+
+	allIssues, err = issuesRepository.FindAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range allIssues {
+		log.Printf("%v\n", issue)
+	}
 }

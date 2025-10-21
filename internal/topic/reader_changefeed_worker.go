@@ -10,27 +10,27 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/topic/topicreader"
 )
 
-type ReaderWorker struct {
+type ReaderChangefeedWorker struct {
 	topicReader *topicreader.Reader
 	quitChannel chan bool
 }
 
-func NewReaderWorker(topicClient topic.Client) (*ReaderWorker, error) {
+func NewReaderChangefeedWorker(topicClient topic.Client) (*ReaderChangefeedWorker, error) {
 	var reader, err = topicClient.StartReader(
-		"email",
-		topicoptions.ReadTopic("task_status"),
+		"test",
+		topicoptions.ReadTopic("issues/updates"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ReaderWorker{
+	return &ReaderChangefeedWorker{
 		topicReader: reader,
 		quitChannel: make(chan bool),
 	}, nil
 }
 
-func (w *ReaderWorker) Run(ctx context.Context) {
+func (w *ReaderChangefeedWorker) ReadChangefeed(ctx context.Context) {
 	var goroutine = func() {
 		for true {
 			var message, err = w.topicReader.ReadMessage(ctx)
@@ -53,8 +53,8 @@ func (w *ReaderWorker) Run(ctx context.Context) {
 				continue
 			}
 
-			if message.SeqNo == 6 {
-				log.Println("Stopping reader worker!")
+			if message.SeqNo == 4 {
+				log.Println("Stopping reader changefeed worker!")
 				w.quitChannel <- true
 				return
 			}
@@ -63,7 +63,7 @@ func (w *ReaderWorker) Run(ctx context.Context) {
 	go goroutine()
 }
 
-func (w *ReaderWorker) Shutdown(ctx context.Context) error {
+func (w *ReaderChangefeedWorker) Shutdown(ctx context.Context) error {
 	<-w.quitChannel
 	return w.topicReader.Close(ctx)
 }

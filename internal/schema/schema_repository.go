@@ -25,7 +25,6 @@ func (repo *SchemaRepository) CreateSchema() {
 			PRIMARY KEY (id)
 		);
 	`)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,7 +32,6 @@ func (repo *SchemaRepository) CreateSchema() {
 	err = repo.query.Execute(`
 		ALTER TABLE issues ADD INDEX authorIndex GLOBAL ON (author);
 	`)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -47,7 +45,6 @@ func (repo *SchemaRepository) CreateSchema() {
 			PRIMARY KEY (source, destination)
 		);
 	`)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,7 +61,23 @@ func (repo *SchemaRepository) CreateSchema() {
 
 		ALTER TABLE issues ADD COLUMN status Text;
 	`)
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	err = repo.query.Execute(`
+		ALTER TABLE issues ADD CHANGEFEED updates WITH (
+			FORMAT = 'JSON',
+			MODE = 'NEW_AND_OLD_IMAGES',
+			VIRTUAL_TIMESTAMPS = TRUE,
+			INITIAL_SCAN = TRUE
+		);
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = repo.query.Execute("ALTER TOPIC `issues/updates` ADD CONSUMER test;")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -76,7 +89,6 @@ func (repo *SchemaRepository) DropSchema() {
 		DROP TABLE IF EXISTS links;
 		DROP TOPIC IF EXISTS task_status;
 	`)
-
 	if err != nil {
 		log.Fatal(err)
 	}
