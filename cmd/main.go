@@ -7,6 +7,8 @@ import (
 	"ydb-sample/internal/query"
 	"ydb-sample/internal/schema"
 	"ydb-sample/internal/topic"
+
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -189,6 +191,85 @@ func main() {
 	}
 
 	readerChangefeedWorker.Shutdown(ctx)
+
+	log.Println("Print all issues")
+
+	allIssues, err = issuesRepository.FindAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range allIssues {
+		log.Printf("%v\n", issue)
+	}
+
+	// ====== COMPLEX QUERIES TEST ======
+	log.Println("Testing complex queries...")
+
+	err = issuesRepository.AddIssues([]string{
+		"Ticket 4",
+		"Ticket 5",
+		"Ticket 6",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Print all issues")
+
+	allIssues, err = issuesRepository.FindAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range allIssues {
+		log.Printf("%v\n", issue)
+	}
+
+	log.Println("Update all issues' status")
+
+	for _, issue := range allIssues {
+		err = issuesRepository.UpdateStatus(issue.Id, "FUTURE")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	log.Println("Find by ids:")
+
+	foundByIds, err := issuesRepository.FindByIds([]uuid.UUID{
+		third.Id,
+		allIssues[4].Id,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range foundByIds {
+		log.Printf("%v\n", issue)
+	}
+
+	log.Println("Future issues:")
+
+	futureIssues, err := issuesRepository.FindFutures()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range futureIssues {
+		log.Printf("%v\n", issue)
+	}
+
+	log.Println("Delete issues by id")
+
+	err = issuesRepository.DeleteByIds([]uuid.UUID{
+		first.Id,
+		allIssues[3].Id,
+		secondIssue.Id,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	log.Println("Print all issues")
 
