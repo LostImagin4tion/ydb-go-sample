@@ -30,13 +30,6 @@ func (repo *SchemaRepository) CreateSchema() {
 	}
 
 	err = repo.query.Execute(`
-		ALTER TABLE issues ADD INDEX authorIndex GLOBAL ON (author);
-	`)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = repo.query.Execute(`
 		ALTER TABLE issues ADD COLUMN links_count Uint64;
 
 		CREATE TABLE IF NOT EXISTS links (
@@ -83,11 +76,29 @@ func (repo *SchemaRepository) CreateSchema() {
 	}
 }
 
+func (repo *SchemaRepository) CreateAuthorIndex() {
+	err := repo.query.Execute(`
+		ALTER TABLE issues ADD INDEX authorIndex GLOBAL ON (author);
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func (repo *SchemaRepository) DropSchema() {
 	err := repo.query.Execute(`
 		DROP TABLE IF EXISTS issues;
 		DROP TABLE IF EXISTS links;
 		DROP TOPIC IF EXISTS task_status;
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func (repo *SchemaRepository) DropAuthorIndex() {
+	err := repo.query.Execute(`
+		ALTER TABLE issues DROP INDEX authorIndex;
 	`)
 	if err != nil {
 		log.Fatal(err)
