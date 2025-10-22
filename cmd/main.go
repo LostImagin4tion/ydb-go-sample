@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"log"
+	"os"
+	"ydb-sample/internal/bulk"
 	"ydb-sample/internal/issue"
 	"ydb-sample/internal/query"
 	"ydb-sample/internal/schema"
@@ -25,8 +28,9 @@ func main() {
 
 	schemaRepository.DropSchema()
 	schemaRepository.CreateSchema()
+	schemaRepository.CreateAuthorIndex()
 
-	// ====== INSERT DATA ======
+	// ====== TEST INSERT DATA ======
 	log.Println("Inserting data...")
 
 	firstIssue, err := issuesRepository.AddIssue("Ticket 1", "Author 1")
@@ -44,7 +48,7 @@ func main() {
 		log.Fatalf("Some error happened (3): %v\n", err)
 	}
 
-	// ====== CHECK DATA ======
+	// ====== TEST DATA ======
 	log.Println("Checking data...")
 
 	allIssues, err := issuesRepository.FindAll()
@@ -75,7 +79,7 @@ func main() {
 	}
 	log.Printf("Third: %v\n", second)
 
-	// ====== CHECK TRANSACTIONS ======
+	// ====== TEST TRANSACTIONS ======
 	log.Println("Checking non-interactive transaction...")
 
 	result1, err := issuesRepository.LinkTicketsNoInteractive(first.Id, second.Id)
@@ -90,7 +94,7 @@ func main() {
 	}
 	log.Printf("Interactive transaction result: %v\n", result2)
 
-	// ====== CHECK DATA AGAIN ======
+	// ====== TEST DATA AGAIN ======
 	log.Println("All issues:")
 
 	allIssues, err = issuesRepository.FindAll()
@@ -102,7 +106,7 @@ func main() {
 		log.Printf("%v\n", issue)
 	}
 
-	// ====== CHECK AUTHOR INDEX ======
+	// ====== TEST AUTHOR INDEX ======
 	log.Println("Find by index 'authorIndex':")
 
 	author2Issues, err := issuesRepository.FindByAuthor("Author 2")
@@ -111,7 +115,7 @@ func main() {
 	}
 	log.Printf("Author 2 issues: %v", author2Issues)
 
-	// ====== CHECK TOPICS ======
+	// ====== TEST TOPICS ======
 	updateService, err := topic.NewStatusUpdateService(
 		issuesRepository,
 		queryHelper.Topic(),
@@ -166,7 +170,7 @@ func main() {
 		log.Printf("%v\n", issue)
 	}
 
-	// ====== CHANGEFEED TEST ======
+	// ====== TEST CHANGEFEED ======
 	log.Println("Testing changefeed...")
 	readerChangefeedWorker, err := topic.NewReaderChangefeedWorker(queryHelper.Topic())
 	if err != nil {
@@ -203,7 +207,7 @@ func main() {
 		log.Printf("%v\n", issue)
 	}
 
-	// ====== COMPLEX QUERIES TEST ======
+	// ====== TEST COMPLEX QUERIES ======
 	log.Println("Testing complex queries...")
 
 	err = issuesRepository.AddIssues([]string{
@@ -281,4 +285,88 @@ func main() {
 	for _, issue := range allIssues {
 		log.Printf("%v\n", issue)
 	}
+
+	// ====== TEST BULK OPERATIONS ======
+	keyValueApiRepository := bulk.NewKeyValueApiRepository(queryHelper)
+
+	log.Println("Dropping author index...")
+	schemaRepository.DropAuthorIndex()
+
+	log.Println("Reading CSV file...")
+	titleAuthorSlice, err := readTitleAuthorCSV("title_author.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Perform bulk upsert")
+
+	err = keyValueApiRepository.BulkUpsert("/local/issues", titleAuthorSlice)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Print all issues")
+
+	allIssues, err = issuesRepository.FindAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	lastIssue := issue.Issue{}
+	for _, issue := range allIssues {
+		log.Printf("%v\n", issue)
+		lastIssue = issue
+	}
+
+	log.Println("Read table")
+
+	readTableIssues, err := keyValueApiRepository.ReadTable("/local/issues")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range readTableIssues {
+		log.Printf("%v\n", issue)
+	}
+
+	log.Println("Read rows")
+
+	readRowsIssues, err := keyValueApiRepository.ReadRows(ctx, "/local/issues", lastIssue.Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, issue := range readRowsIssues {
+		log.Printf("%v\n", issue)
+	}
+
+	log.Println("Creating author index...")
+	schemaRepository.CreateAuthorIndex()
+}
+
+func readTitleAuthorCSV(filename string) ([]issue.TitleAuthor, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []issue.TitleAuthor
+	for i, record := range records {
+		if i == 0 {
+			continue
+		}
+		results = append(results, issue.TitleAuthor{
+			Title:  record[0],
+			Author: record[1],
+		})
+	}
+
+	return results, nil
 }
