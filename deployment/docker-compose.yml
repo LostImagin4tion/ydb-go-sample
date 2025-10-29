@@ -1,6 +1,6 @@
 services:
   ydb-local:
-    image: ydbplatform/local-ydb:latest
+    image: ydbplatform/local-ydb:trunk
     container_name: ydb-sample
     hostname: localhost
     platform: linux/amd64
